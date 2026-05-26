@@ -22,3 +22,4 @@ PDF -> text extraction -> chunking -> local embeddings (sentence-transformers) -
 | Vector DB | ChromaDB in-memory | Free |
 | Backend | FastAPI | Free |
 | Frontend | Streamlit | Free |
+![Output Screenshot](assets/output.png)
