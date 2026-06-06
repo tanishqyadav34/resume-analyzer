@@ -1,29 +1,22 @@
 import json
 import re
-
-import requests
-
+import os
+from groq import Groq
+from dotenv import load_dotenv
 from backend.embedder import retrieve_relevant_chunks
 
+load_dotenv()
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "mistral"
+MODEL_NAME = "llama-3.3-70b-versatile"
 
-
-def call_ollama(prompt: str) -> str:
-    try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={"model": MODEL_NAME, "prompt": prompt, "stream": False},
-            timeout=600,
-        )
-    except requests.exceptions.ConnectionError as exc:
-        raise RuntimeError(
-            "Ollama is not running. Please start it: ollama serve"
-        ) from exc
-
-    return response.json()["response"]
-
+def call_groq(prompt: str) -> str:
+    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.1,
+    )
+    return response.choices[0].message.content
 
 def clean_json_response(text: str) -> str:
     text = text.strip()
@@ -37,11 +30,8 @@ def clean_json_response(text: str) -> str:
         text = text[start:end+1]
     return text
 
-
 def analyze_resume(collection, resume_text: str, job_description: str) -> dict:
-    retrieved_chunks = retrieve_relevant_chunks(
-        collection, job_description, n_results=5
-    )
+    retrieved_chunks = retrieve_relevant_chunks(collection, job_description, n_results=5)
     retrieved_text = "\n".join(retrieved_chunks)
 
     prompt = f"""You are a JSON API. You must respond with ONLY a JSON object, nothing else. No explanation, no markdown, no code fences, no text before or after.
@@ -55,7 +45,8 @@ Job Description:
 Respond with ONLY this exact JSON structure (fill in real values):
 {{"extracted_skills": ["Python", "FastAPI"], "fit_score": 72, "missing_keywords": ["Docker", "RAG"], "suggestion": "Add more details about your ML project experience."}}"""
 
-    text = clean_json_response(call_ollama(prompt))
+    raw = call_groq(prompt)
+    text = clean_json_response(raw)
 
     try:
         return json.loads(text)
