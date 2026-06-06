@@ -1,5 +1,4 @@
 pdfplumber
-sentence-transformers
 chromadb
 fastapi
 uvicorn
@@ -8,3 +7,4 @@ pydantic
 requests
 groq
 python-dotenv
+fastembed

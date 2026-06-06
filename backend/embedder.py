@@ -1,33 +1,31 @@
 import chromadb
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 
-
-model = SentenceTransformer("all-MiniLM-L6-v2")
+# Load once at module level — uses ONNX, no PyTorch, ~100MB RAM
+embedding_model = TextEmbedding("BAAI/bge-small-en-v1.5")
 chroma_client = chromadb.Client()
 
-
-def embed_and_store(
-    chunks: list[str], collection_name: str = "resume"
-) -> chromadb.Collection:
+def embed_and_store(chunks: list[str], collection_name: str = "resume"):
     try:
         chroma_client.delete_collection(collection_name)
     except Exception:
         pass
-
+    
     collection = chroma_client.create_collection(collection_name)
-    embeddings = model.encode(chunks).tolist()
-    ids = [f"chunk_{index}" for index in range(len(chunks))]
-
-    collection.add(ids=ids, embeddings=embeddings, documents=chunks)
+    embeddings = list(embedding_model.embed(chunks))
+    embeddings_list = [e.tolist() for e in embeddings]
+    
+    collection.add(
+        documents=chunks,
+        embeddings=embeddings_list,
+        ids=[f"chunk_{i}" for i in range(len(chunks))]
+    )
     return collection
 
-
 def retrieve_relevant_chunks(collection, query: str, n_results: int = 5) -> list[str]:
-    query_embedding = model.encode([query]).tolist()
+    query_embedding = list(embedding_model.embed([query]))[0].tolist()
     results = collection.query(
-        query_embeddings=query_embedding,
-        n_results=n_results,
+        query_embeddings=[query_embedding],
+        n_results=min(n_results, collection.count())
     )
-
-    documents = results.get("documents", [[]])
-    return documents[0] if documents else []
+    return results["documents"][0]
